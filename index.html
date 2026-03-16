@@ -1,20 +1,323 @@
 <!DOCTYPE html>
 <html lang="de">
-<head><meta charset="UTF-8"><title>Azure AD Test</title></head>
-<body style="font-family:sans-serif;padding:2rem;background:#1b212e;color:white">
-  <h1 style="color:#b39c4d">✅ Azure AD Login erfolgreich!</h1>
-  <p>Du bist eingeloggt. Diese Seite ist durch Azure Entra ID geschützt.</p>
-  <p style="color:#94a3b8;font-size:0.85rem">
-    Angemeldeter User: <strong id="user">wird geladen...</strong>
-  </p>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Azure AD · Entra ID Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 2rem 1rem;
+    }
+
+    .card {
+      background: #1e2535;
+      border: 1px solid #2d3748;
+      border-radius: 16px;
+      padding: 2rem 2.5rem;
+      max-width: 680px;
+      width: 100%;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #1a3a2a;
+      border: 1px solid #2d6a4f;
+      color: #52c77d;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 1.25rem;
+    }
+
+    .badge::before { content: "●"; font-size: 0.6rem; }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: #64748b;
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+
+    .avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #b39c4d, #8a7a3c);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #0f1117;
+      margin-bottom: 1rem;
+      flex-shrink: 0;
+    }
+
+    .user-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .user-info h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .user-info p {
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 500px) { .grid { grid-template-columns: 1fr; } }
+
+    .field {
+      background: #151b28;
+      border: 1px solid #2d3748;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+    }
+
+    .field label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: #475569;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .field span {
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      word-break: break-all;
+    }
+
+    .field span.mono {
+      font-family: "Cascadia Code", "Fira Mono", monospace;
+      font-size: 0.78rem;
+      color: #b39c4d;
+    }
+
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #475569;
+      margin: 1.5rem 0 0.75rem;
+    }
+
+    .claims-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .claims-table th {
+      text-align: left;
+      padding: 6px 10px;
+      background: #151b28;
+      color: #475569;
+      font-weight: 600;
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-bottom: 1px solid #2d3748;
+    }
+
+    .claims-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #1e2535;
+      color: #94a3b8;
+      word-break: break-all;
+    }
+
+    .claims-table td:first-child {
+      color: #b39c4d;
+      font-family: monospace;
+      white-space: nowrap;
+      width: 35%;
+    }
+
+    .claims-table tr:last-child td { border-bottom: none; }
+
+    .logout-btn {
+      display: inline-block;
+      margin-top: 1.5rem;
+      padding: 10px 24px;
+      background: transparent;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      color: #64748b;
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .logout-btn:hover {
+      border-color: #e53e3e;
+      color: #fc8181;
+      background: #1a0f0f;
+    }
+
+    .footer {
+      color: #2d3748;
+      font-size: 0.75rem;
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    .skeleton {
+      background: linear-gradient(90deg, #1e2535 25%, #2d3748 50%, #1e2535 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 4px;
+      height: 1em;
+      display: inline-block;
+      width: 140px;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="badge">Azure Entra ID · Easy Auth</div>
+    <h1>Geschützter Bereich</h1>
+    <p class="subtitle">Diese Seite ist durch Microsoft Entra ID (Azure AD) abgesichert. Kein einziger Auth-Code in der App.</p>
+
+    <div class="user-row">
+      <div class="avatar" id="avatar">?</div>
+      <div class="user-info">
+        <h2 id="display-name"><span class="skeleton"></span></h2>
+        <p id="email"><span class="skeleton" style="width:180px"></span></p>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="field">
+        <label>Anbieter</label>
+        <span id="provider"><span class="skeleton" style="width:80px"></span></span>
+      </div>
+      <div class="field">
+        <label>User ID</label>
+        <span class="mono" id="user-id"><span class="skeleton"></span></span>
+      </div>
+      <div class="field">
+        <label>Tenant</label>
+        <span class="mono" id="tenant"><span class="skeleton"></span></span>
+      </div>
+      <div class="field">
+        <label>Authentifiziert seit</label>
+        <span id="auth-time"><span class="skeleton" style="width:100px"></span></span>
+      </div>
+    </div>
+
+    <a class="logout-btn" href="/.auth/logout">Abmelden</a>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Token Claims</div>
+    <table class="claims-table">
+      <thead>
+        <tr>
+          <th>Claim</th>
+          <th>Wert</th>
+        </tr>
+      </thead>
+      <tbody id="claims-body">
+        <tr><td colspan="2" style="color:#475569;padding:1rem 10px">Lade Claims…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="footer">Azure AD Experiment · SmartScope · COSMO Consult · 2026</p>
+
   <script>
+    const claim = (claims, typ) =>
+      claims?.find(c => c.typ === typ)?.val ?? null;
+
     fetch('/.auth/me')
       .then(r => r.json())
       .then(data => {
-        const name = data[0]?.user_claims?.find(c => c.typ === 'name')?.val ?? data[0]?.user_id ?? 'unbekannt';
-        document.getElementById('user').textContent = name;
+        const user = data[0];
+        if (!user) { document.getElementById('display-name').textContent = 'Kein User'; return; }
+
+        const claims = user.user_claims ?? [];
+        const name   = claim(claims, 'name') ?? claim(claims, 'preferred_username') ?? user.user_id ?? 'Unbekannt';
+        const email  = claim(claims, 'preferred_username') ?? claim(claims, 'email') ?? user.user_id ?? '—';
+        const tenant = claim(claims, 'http://schemas.microsoft.com/identity/claims/tenantid') ?? claim(claims, 'tid') ?? '—';
+        const iat    = claim(claims, 'iat');
+        const authTime = iat ? new Date(parseInt(iat) * 1000).toLocaleString('de-DE') : '—';
+
+        // Avatar initials
+        const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        document.getElementById('avatar').textContent = initials || '?';
+
+        document.getElementById('display-name').textContent = name;
+        document.getElementById('email').textContent = email;
+        document.getElementById('provider').textContent = user.provider_name ?? 'aad';
+        document.getElementById('user-id').textContent = user.user_id ?? '—';
+        document.getElementById('tenant').textContent = tenant;
+        document.getElementById('auth-time').textContent = authTime;
+
+        // Claims table — filter out noisy ones
+        const skip = new Set(['nonce','aio','c_hash','uti','ver','rh']);
+        const rows = claims
+          .filter(c => !skip.has(c.typ.split('/').pop()))
+          .map(c => {
+            const key = c.typ.includes('/') ? c.typ.split('/').pop() : c.typ;
+            const val = c.typ === 'iat' || c.typ === 'exp' || c.typ === 'nbf'
+              ? new Date(parseInt(c.val) * 1000).toLocaleString('de-DE') + ' (' + c.val + ')'
+              : c.val;
+            return `<tr><td>${key}</td><td>${val}</td></tr>`;
+          })
+          .join('');
+
+        document.getElementById('claims-body').innerHTML = rows || '<tr><td colspan="2" style="color:#475569">Keine Claims gefunden</td></tr>';
       })
-      .catch(() => document.getElementById('user').textContent = 'nicht verfügbar');
+      .catch(() => {
+        document.getElementById('display-name').textContent = 'Nicht eingeloggt / lokal';
+        document.getElementById('email').textContent = '/.auth/me nicht verfügbar';
+        document.getElementById('claims-body').innerHTML = '<tr><td colspan="2" style="color:#475569">—</td></tr>';
+      });
   </script>
 </body>
 </html>
