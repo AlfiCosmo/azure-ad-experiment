@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azure AD - Entra ID Demo</title>
-  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js" crossorigin="anonymous"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -90,10 +89,10 @@
 <body>
 
   <div id="login-section" class="card">
-    <div class="badge wait">MSAL.js &middot; Client-Directed Sign-In</div>
+    <div class="badge wait">OAuth2 Implicit Flow &middot; Client-Directed Sign-In</div>
     <div class="login-icon">&#x1F512;</div>
     <h1>Azure AD Experiment</h1>
-    <p>Klicke auf <strong>Anmelden</strong>, um dich per MSAL.js direkt bei Microsoft Entra&nbsp;ID zu authentifizieren. Das Token wird dann an Easy Auth &uuml;bergeben.</p>
+    <p>Klicke auf <strong>Anmelden</strong> &ndash; ein Popup authentifiziert dich direkt bei Azure&nbsp;AD. Das ID-Token wird dann an Easy Auth &uuml;bergeben.</p>
     <button class="btn btn-login" id="btn-login" onclick="doLogin()">Mit Microsoft anmelden</button>
     <div class="status-bar" id="login-status">
       <span class="dot yellow"></span>
@@ -102,9 +101,9 @@
   </div>
 
   <div id="user-card" class="card hidden">
-    <div class="badge ok">Azure Entra ID &middot; MSAL.js + Easy Auth</div>
+    <div class="badge ok">Azure Entra ID &middot; Client-Directed + Easy Auth</div>
     <h1>Gesch&uuml;tzter Bereich</h1>
-    <p class="subtitle">Authentifiziert via MSAL.js &rarr; <code>/.auth/login/aad</code> (Client-Directed Sign-In)</p>
+    <p class="subtitle">Authentifiziert via OAuth2 Popup &rarr; <code>/.auth/login/aad</code></p>
     <div class="user-row">
       <div class="avatar" id="avatar">?</div>
       <div class="user-info">
@@ -116,7 +115,7 @@
       <div class="field"><label>Anbieter</label><span id="provider"><span class="skeleton" style="width:80px"></span></span></div>
       <div class="field"><label>User ID</label><span class="mono" id="user-id"><span class="skeleton"></span></span></div>
       <div class="field"><label>Tenant</label><span class="mono" id="tenant"><span class="skeleton"></span></span></div>
-      <div class="field"><label>Auth Methode</label><span id="auth-method">MSAL.js Popup &rarr; Easy Auth</span></div>
+      <div class="field"><label>Auth Methode</label><span id="auth-method">OAuth2 Popup &rarr; Easy Auth</span></div>
     </div>
     <button class="btn btn-logout" onclick="doLogout()">Abmelden</button>
   </div>
@@ -136,20 +135,12 @@
   <script>
     var CLIENT_ID = '881225b8-98da-4504-96cc-35c6b2cbd6c7';
     var TENANT_ID = '94d30528-464f-45a5-a95e-816428f57b90';
-    var AUTHORITY  = 'https://login.microsoftonline.com/' + TENANT_ID;
-    var SCOPES     = ['openid', 'profile', 'email'];
-    var msalInstance = null;
-    var msalReady = null;
+    var REDIRECT_URI = window.location.origin + '/';
 
-    function initMsal() {
-      if (msalReady) return msalReady;
-      if (typeof msal === 'undefined') return Promise.reject(new Error('MSAL.js nicht geladen - bitte Seite neu laden'));
-      msalInstance = new msal.PublicClientApplication({
-        auth: { clientId: CLIENT_ID, authority: AUTHORITY, redirectUri: window.location.origin + '/' },
-        cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: true }
-      });
-      msalReady = msalInstance.initialize ? msalInstance.initialize() : Promise.resolve();
-      return msalReady;
+    function generateNonce() {
+      var arr = new Uint8Array(16);
+      crypto.getRandomValues(arr);
+      return Array.from(arr, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
     }
 
     function doLogin() {
@@ -157,37 +148,86 @@
       var status = document.getElementById('login-status');
       btn.disabled = true;
       btn.textContent = 'Authentifiziere...';
-      status.innerHTML = '<span class="dot yellow"></span><span>MSAL.js Popup wird geoeffnet...</span>';
+      status.innerHTML = '<span class="dot yellow"></span><span>Azure AD Login-Popup wird geoeffnet...</span>';
 
-      initMsal().then(function() {
-        return msalInstance.loginPopup({ scopes: SCOPES });
-      }).then(function(loginResponse) {
-        status.innerHTML = '<span class="dot yellow"></span><span>Token erhalten, sende an Easy Auth...</span>';
-        return fetch('/.auth/login/aad', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id_token: loginResponse.idToken })
-        });
-      }).then(function(resp) {
-        if (!resp.ok) throw new Error('Easy Auth: ' + resp.status + ' ' + resp.statusText);
-        return resp.json();
-      }).then(function(data) {
-        status.innerHTML = '<span class="dot green"></span><span>Easy Auth Session etabliert!</span>';
-        if (data.authenticationToken) {
-          document.cookie = 'AppServiceAuthSession=' + data.authenticationToken + '; path=/; secure; samesite=lax';
-        }
-        return loadUserInfo();
-      }).catch(function(err) {
-        console.error('Login-Fehler:', err);
+      var nonce = generateNonce();
+      sessionStorage.setItem('aad_nonce', nonce);
+
+      var authUrl = 'https://login.microsoftonline.com/' + TENANT_ID + '/oauth2/v2.0/authorize'
+        + '?client_id=' + CLIENT_ID
+        + '&response_type=id_token'
+        + '&redirect_uri=' + encodeURIComponent(REDIRECT_URI)
+        + '&scope=' + encodeURIComponent('openid profile email')
+        + '&response_mode=fragment'
+        + '&nonce=' + nonce
+        + '&prompt=select_account';
+
+      var popup = window.open(authUrl, 'aad_login', 'width=500,height=700,scrollbars=yes');
+      if (!popup) {
         btn.disabled = false;
         btn.textContent = 'Mit Microsoft anmelden';
-        status.innerHTML = '<span class="dot" style="background:#e53e3e"></span><span style="color:#fc8181">Fehler: ' + err.message + '</span>';
-      });
+        status.innerHTML = '<span class="dot" style="background:#e53e3e"></span><span style="color:#fc8181">Popup blockiert! Bitte Popup-Blocker deaktivieren.</span>';
+        return;
+      }
+
+      var pollTimer = setInterval(function() {
+        try {
+          if (popup.closed) {
+            clearInterval(pollTimer);
+            btn.disabled = false;
+            btn.textContent = 'Mit Microsoft anmelden';
+            status.innerHTML = '<span class="dot yellow"></span><span>Popup geschlossen</span>';
+            return;
+          }
+          var hash = popup.location.hash;
+          if (hash && hash.indexOf('id_token=') !== -1) {
+            clearInterval(pollTimer);
+            popup.close();
+
+            var params = {};
+            hash.substring(1).split('&').forEach(function(p) {
+              var kv = p.split('=');
+              params[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || '');
+            });
+
+            var idToken = params['id_token'];
+            if (!idToken) {
+              btn.disabled = false;
+              btn.textContent = 'Mit Microsoft anmelden';
+              status.innerHTML = '<span class="dot" style="background:#e53e3e"></span><span style="color:#fc8181">Kein ID-Token erhalten</span>';
+              return;
+            }
+
+            status.innerHTML = '<span class="dot yellow"></span><span>Token erhalten, sende an Easy Auth...</span>';
+
+            fetch('/.auth/login/aad', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id_token: idToken })
+            }).then(function(resp) {
+              if (!resp.ok) throw new Error('Easy Auth: ' + resp.status);
+              return resp.json();
+            }).then(function(data) {
+              status.innerHTML = '<span class="dot green"></span><span>Easy Auth Session etabliert!</span>';
+              if (data.authenticationToken) {
+                document.cookie = 'AppServiceAuthSession=' + data.authenticationToken + '; path=/; secure; samesite=lax';
+              }
+              loadUserInfo();
+            }).catch(function(err) {
+              btn.disabled = false;
+              btn.textContent = 'Mit Microsoft anmelden';
+              status.innerHTML = '<span class="dot" style="background:#e53e3e"></span><span style="color:#fc8181">Easy Auth Fehler: ' + err.message + '</span>';
+            });
+          }
+        } catch (e) {
+          /* cross-origin - popup still on login.microsoftonline.com, keep polling */
+        }
+      }, 500);
     }
 
     function loadUserInfo() {
-      return fetch('/.auth/me').then(function(resp) {
-        if (!resp.ok) throw new Error('/.auth/me: ' + resp.status);
+      fetch('/.auth/me').then(function(resp) {
+        if (!resp.ok) throw new Error(resp.status);
         return resp.json();
       }).then(function(data) {
         var user = data[0];
@@ -219,12 +259,18 @@
     }
 
     function doLogout() {
-      initMsal().then(function() { return msalInstance.logoutPopup(); }).catch(function(){}).then(function() {
-        window.location.href = '/.auth/logout?post_logout_redirect_uri=' + encodeURIComponent(window.location.origin + '/');
-      });
+      window.location.href = '/.auth/logout?post_logout_redirect_uri=' + encodeURIComponent(window.location.origin + '/');
     }
 
-    fetch('/.auth/me').then(function(r) { if (r.ok) return r.json(); throw 0; }).then(function(d) { if (d[0]) loadUserInfo(); }).catch(function() {});
+    /* Handle redirect from popup (this page IS the redirect_uri) */
+    if (window.location.hash && window.location.hash.indexOf('id_token=') !== -1 && window.opener) {
+      /* We are in the popup after Azure AD redirect - parent will poll our hash */
+      /* Just stay here, the parent's setInterval will read our hash and close us */
+    } else {
+      /* Main page - check if already authenticated */
+      fetch('/.auth/me').then(function(r) { if (r.ok) return r.json(); throw 0; })
+        .then(function(d) { if (d[0]) loadUserInfo(); }).catch(function() {});
+    }
   </script>
 </body>
 </html>
