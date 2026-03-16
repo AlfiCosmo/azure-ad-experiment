@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Azure AD · Entra ID Demo</title>
+  <title>Azure AD Â· Entra ID Demo</title>
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -147,10 +147,10 @@
 
   <!-- Login Screen -->
   <div id="login-section" class="card">
-    <div class="badge wait">MSAL.js · Client-Directed Sign-In</div>
-    <div class="login-icon">&#x1F510;</div>
+    <div class="badge wait">MSAL.js Â· Client-Directed Sign-In</div>
+    <div class="login-icon">ðŸ”</div>
     <h1>Azure AD Experiment</h1>
-    <p>Klicke auf <strong>Anmelden</strong>, um dich per MSAL.js direkt bei Microsoft Entra&nbsp;ID zu authentifizieren. Das Token wird anschlie&szlig;end an Easy Auth &uuml;bergeben.</p>
+    <p>Klicke auf <strong>Anmelden</strong>, um dich per MSAL.js direkt bei Microsoft Entra&nbsp;ID zu authentifizieren. Das Token wird anschlieÃŸend an Easy Auth Ã¼bergeben.</p>
     <button class="btn btn-login" id="btn-login" onclick="doLogin()">Mit Microsoft anmelden</button>
     <div class="status-bar" id="login-status">
       <span class="dot yellow"></span>
@@ -160,9 +160,9 @@
 
   <!-- Authenticated User Card -->
   <div id="user-card" class="card hidden">
-    <div class="badge ok">Azure Entra ID &middot; MSAL.js + Easy Auth</div>
-    <h1>Gesch&uuml;tzter Bereich</h1>
-    <p class="subtitle">Authentifiziert via MSAL.js &rarr; <code>/.auth/login/aad</code> (Client-Directed Sign-In)</p>
+    <div class="badge ok">Azure Entra ID Â· MSAL.js + Easy Auth</div>
+    <h1>GeschÃ¼tzter Bereich</h1>
+    <p class="subtitle">Authentifiziert via MSAL.js â†’ <code>/.auth/login/aad</code> (Client-Directed Sign-In)</p>
 
     <div class="user-row">
       <div class="avatar" id="avatar">?</div>
@@ -187,7 +187,7 @@
       </div>
       <div class="field">
         <label>Auth Methode</label>
-        <span id="auth-method">MSAL.js Popup &rarr; Easy Auth</span>
+        <span id="auth-method">MSAL.js Popup â†’ Easy Auth</span>
       </div>
     </div>
 
@@ -200,17 +200,17 @@
     <table class="claims-table">
       <thead><tr><th>Claim</th><th>Wert</th></tr></thead>
       <tbody id="claims-body">
-        <tr><td colspan="2" style="color:#475569;padding:1rem 10px">Lade Claims&hellip;</td></tr>
+        <tr><td colspan="2" style="color:#475569;padding:1rem 10px">Lade Claimsâ€¦</td></tr>
       </tbody>
     </table>
   </div>
 
-  <p class="footer">Azure AD Experiment &middot; SmartScope &middot; COSMO Consult &middot; 2026</p>
+  <p class="footer">Azure AD Experiment Â· SmartScope Â· COSMO Consult Â· 2026</p>
 
   <script>
     const CLIENT_ID = '881225b8-98da-4504-96cc-35c6b2cbd6c7';
     const TENANT_ID = '94d30528-464f-45a5-a95e-816428f57b90';
-    const AUTHORITY  = 'https://login.microsoftonline.com/' + TENANT_ID;
+    const AUTHORITY  = `https://login.microsoftonline.com/${TENANT_ID}`;
     const SCOPES     = ['openid', 'profile', 'email'];
 
     const msalConfig = {
@@ -222,36 +222,41 @@
       cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: true }
     };
 
-    const msalInstance = new msal.PublicClientApplication(msalConfig);
+    let msalInstance = null;
+    const msalReady = (async () => {
+      msalInstance = new msal.PublicClientApplication(msalConfig);
+      if (msalInstance.initialize) await msalInstance.initialize();
+    })();
 
     async function doLogin() {
-      var btn = document.getElementById('btn-login');
-      var status = document.getElementById('login-status');
+      const btn = document.getElementById('btn-login');
+      const status = document.getElementById('login-status');
       btn.disabled = true;
-      btn.textContent = 'Authentifiziere\u2026';
-      status.innerHTML = '<span class="dot yellow"></span><span>MSAL.js Popup ge\u00f6ffnet \u2013 bitte anmelden\u2026</span>';
+      btn.textContent = 'Authentifiziereâ€¦';
+      status.innerHTML = '<span class="dot yellow"></span><span>MSAL.js Popup geÃ¶ffnet â€“ bitte anmeldenâ€¦</span>';
 
       try {
-        var loginResponse = await msalInstance.loginPopup({ scopes: SCOPES });
-        status.innerHTML = '<span class="dot yellow"></span><span>Token erhalten, sende an Easy Auth\u2026</span>';
+        await msalReady;
+        const loginResponse = await msalInstance.loginPopup({ scopes: SCOPES });
+        status.innerHTML = '<span class="dot yellow"></span><span>Token erhalten, sende an Easy Authâ€¦</span>';
 
-        var idToken = loginResponse.idToken;
-        var easyAuthResp = await fetch('/.auth/login/aad', {
+        const idToken = loginResponse.idToken;
+        const easyAuthResp = await fetch('/.auth/login/aad', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id_token: idToken })
         });
 
         if (!easyAuthResp.ok) {
-          throw new Error('Easy Auth Login fehlgeschlagen: ' + easyAuthResp.status + ' ' + easyAuthResp.statusText);
+          throw new Error(`Easy Auth Login fehlgeschlagen: ${easyAuthResp.status} ${easyAuthResp.statusText}`);
         }
 
-        var easyAuthData = await easyAuthResp.json();
+        const easyAuthData = await easyAuthResp.json();
         status.innerHTML = '<span class="dot green"></span><span>Easy Auth Session etabliert!</span>';
 
-        var appServiceToken = easyAuthData.authenticationToken;
+        const appServiceToken = easyAuthData.authenticationToken;
         if (appServiceToken) {
-          document.cookie = 'AppServiceAuthSession=' + appServiceToken + '; path=/; secure; samesite=lax';
+          document.cookie = `AppServiceAuthSession=${appServiceToken}; path=/; secure; samesite=lax`;
         }
 
         await loadUserInfo();
@@ -259,49 +264,46 @@
         console.error('Login-Fehler:', err);
         btn.disabled = false;
         btn.textContent = 'Mit Microsoft anmelden';
-        status.innerHTML = '<span class="dot" style="background:#e53e3e"></span><span style="color:#fc8181">Fehler: ' + err.message + '</span>';
+        status.innerHTML = `<span class="dot" style="background:#e53e3e"></span><span style="color:#fc8181">Fehler: ${err.message}</span>`;
       }
     }
 
     async function loadUserInfo() {
       try {
-        var resp = await fetch('/.auth/me');
-        if (!resp.ok) throw new Error('/.auth/me: ' + resp.status);
-        var data = await resp.json();
-        var user = data[0];
+        const resp = await fetch('/.auth/me');
+        if (!resp.ok) throw new Error(`/.auth/me: ${resp.status}`);
+        const data = await resp.json();
+        const user = data[0];
         if (!user) throw new Error('Kein User in /.auth/me');
 
         document.getElementById('login-section').classList.add('hidden');
         document.getElementById('user-card').classList.remove('hidden');
         document.getElementById('claims-card').classList.remove('hidden');
 
-        var claims = user.user_claims || [];
-        function getClaim(typ) {
-          var c = claims.find(function(x) { return x.typ === typ; });
-          return c ? c.val : null;
-        }
+        const claims = user.user_claims ?? [];
+        const claim = (typ) => claims.find(c => c.typ === typ)?.val ?? null;
 
-        var name   = getClaim('name') || getClaim('preferred_username') || user.user_id || 'Unbekannt';
-        var email  = getClaim('preferred_username') || getClaim('email') || user.user_id || '\u2014';
-        var tenant = getClaim('http://schemas.microsoft.com/identity/claims/tenantid') || getClaim('tid') || '\u2014';
+        const name   = claim('name') ?? claim('preferred_username') ?? user.user_id ?? 'Unbekannt';
+        const email  = claim('preferred_username') ?? claim('email') ?? user.user_id ?? 'â€”';
+        const tenant = claim('http://schemas.microsoft.com/identity/claims/tenantid') ?? claim('tid') ?? 'â€”';
 
-        var initials = name.split(' ').map(function(w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
+        const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
         document.getElementById('avatar').textContent = initials || '?';
         document.getElementById('display-name').textContent = name;
         document.getElementById('email').textContent = email;
-        document.getElementById('provider').textContent = user.provider_name || 'aad';
-        document.getElementById('user-id').textContent = user.user_id || '\u2014';
+        document.getElementById('provider').textContent = user.provider_name ?? 'aad';
+        document.getElementById('user-id').textContent = user.user_id ?? 'â€”';
         document.getElementById('tenant').textContent = tenant;
 
-        var skip = ['nonce','aio','c_hash','uti','ver','rh'];
-        var rows = claims
-          .filter(function(c) { var k = c.typ.split('/').pop(); return skip.indexOf(k) === -1; })
-          .map(function(c) {
-            var key = c.typ.indexOf('/') !== -1 ? c.typ.split('/').pop() : c.typ;
-            var val = (c.typ === 'iat' || c.typ === 'exp' || c.typ === 'nbf')
+        const skip = new Set(['nonce','aio','c_hash','uti','ver','rh']);
+        const rows = claims
+          .filter(c => !skip.has(c.typ.split('/').pop()))
+          .map(c => {
+            const key = c.typ.includes('/') ? c.typ.split('/').pop() : c.typ;
+            const val = c.typ === 'iat' || c.typ === 'exp' || c.typ === 'nbf'
               ? new Date(parseInt(c.val) * 1000).toLocaleString('de-DE') + ' (' + c.val + ')'
               : c.val;
-            return '<tr><td>' + key + '</td><td>' + val + '</td></tr>';
+            return `<tr><td>${key}</td><td>${val}</td></tr>`;
           })
           .join('');
 
@@ -311,25 +313,27 @@
       }
     }
 
-    function doLogout() {
-      msalInstance.logoutPopup().then(function() {
+    async function doLogout() {
+      await msalReady;
+      msalInstance.logoutPopup().then(() => {
         window.location.href = '/.auth/logout?post_logout_redirect_uri=' + encodeURIComponent(window.location.origin + '/');
-      }).catch(function() {
+      }).catch(() => {
         window.location.href = '/.auth/logout?post_logout_redirect_uri=' + encodeURIComponent(window.location.origin + '/');
       });
     }
 
     (async function init() {
+      await msalReady;
       try {
-        var resp = await fetch('/.auth/me');
+        const resp = await fetch('/.auth/me');
         if (resp.ok) {
-          var data = await resp.json();
+          const data = await resp.json();
           if (data[0]) {
             await loadUserInfo();
             return;
           }
         }
-      } catch (e) {}
+      } catch {}
     })();
   </script>
 </body>
