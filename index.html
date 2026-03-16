@@ -137,10 +137,39 @@
     var TENANT_ID = '94d30528-464f-45a5-a95e-816428f57b90';
     var REDIRECT_URI = window.location.origin + '/';
 
+    function parseHash(hash) {
+      var params = {};
+      hash.substring(1).split('&').forEach(function(p) {
+        var kv = p.split('=');
+        params[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || '');
+      });
+      return params;
+    }
+
     function generateNonce() {
       var arr = new Uint8Array(16);
       crypto.getRandomValues(arr);
       return Array.from(arr, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    }
+
+    function submitTokenToEasyAuth(idToken) {
+      var status = document.getElementById('login-status');
+      status.innerHTML = '<span class="dot yellow"></span><span>Token erhalten, sende an Easy Auth...</span>';
+
+      return fetch('/.auth/login/aad', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: idToken })
+      }).then(function(resp) {
+        if (!resp.ok) throw new Error('Easy Auth: ' + resp.status);
+        return resp.json();
+      }).then(function(data) {
+        status.innerHTML = '<span class="dot green"></span><span>Easy Auth Session etabliert!</span>';
+        if (data.authenticationToken) {
+          document.cookie = 'AppServiceAuthSession=' + data.authenticationToken + '; path=/; secure; samesite=lax';
+        }
+        loadUserInfo();
+      });
     }
 
     function doLogin() {
@@ -148,7 +177,7 @@
       var status = document.getElementById('login-status');
       btn.disabled = true;
       btn.textContent = 'Authentifiziere...';
-      status.innerHTML = '<span class="dot yellow"></span><span>Azure AD Login-Popup wird geoeffnet...</span>';
+      status.innerHTML = '<span class="dot yellow"></span><span>Azure AD Login wird geoeffnet...</span>';
 
       var nonce = generateNonce();
       sessionStorage.setItem('aad_nonce', nonce);
@@ -183,13 +212,7 @@
           if (hash && hash.indexOf('id_token=') !== -1) {
             clearInterval(pollTimer);
             popup.close();
-
-            var params = {};
-            hash.substring(1).split('&').forEach(function(p) {
-              var kv = p.split('=');
-              params[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || '');
-            });
-
+            var params = parseHash(hash);
             var idToken = params['id_token'];
             if (!idToken) {
               btn.disabled = false;
@@ -197,23 +220,7 @@
               status.innerHTML = '<span class="dot" style="background:#e53e3e"></span><span style="color:#fc8181">Kein ID-Token erhalten</span>';
               return;
             }
-
-            status.innerHTML = '<span class="dot yellow"></span><span>Token erhalten, sende an Easy Auth...</span>';
-
-            fetch('/.auth/login/aad', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id_token: idToken })
-            }).then(function(resp) {
-              if (!resp.ok) throw new Error('Easy Auth: ' + resp.status);
-              return resp.json();
-            }).then(function(data) {
-              status.innerHTML = '<span class="dot green"></span><span>Easy Auth Session etabliert!</span>';
-              if (data.authenticationToken) {
-                document.cookie = 'AppServiceAuthSession=' + data.authenticationToken + '; path=/; secure; samesite=lax';
-              }
-              loadUserInfo();
-            }).catch(function(err) {
+            submitTokenToEasyAuth(idToken).catch(function(err) {
               btn.disabled = false;
               btn.textContent = 'Mit Microsoft anmelden';
               status.innerHTML = '<span class="dot" style="background:#e53e3e"></span><span style="color:#fc8181">Easy Auth Fehler: ' + err.message + '</span>';
@@ -262,12 +269,28 @@
       window.location.href = '/.auth/logout?post_logout_redirect_uri=' + encodeURIComponent(window.location.origin + '/');
     }
 
-    /* Handle redirect from popup (this page IS the redirect_uri) */
-    if (window.location.hash && window.location.hash.indexOf('id_token=') !== -1 && window.opener) {
-      /* We are in the popup after Azure AD redirect - parent will poll our hash */
-      /* Just stay here, the parent's setInterval will read our hash and close us */
+    /* Handle id_token in URL hash (redirect from Azure AD) */
+    if (window.location.hash && window.location.hash.indexOf('id_token=') !== -1) {
+      if (window.opener) {
+        /* Popup mode: parent polls our location.hash - just stay here */
+      } else {
+        /* Tab/redirect mode: extract token and POST to Easy Auth ourselves */
+        var params = parseHash(window.location.hash);
+        var idToken = params['id_token'];
+        if (idToken) {
+          var btn = document.getElementById('btn-login');
+          btn.disabled = true;
+          btn.textContent = 'Authentifiziere...';
+          history.replaceState(null, '', window.location.pathname);
+          submitTokenToEasyAuth(idToken).catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = 'Mit Microsoft anmelden';
+            document.getElementById('login-status').innerHTML = '<span class="dot" style="background:#e53e3e"></span><span style="color:#fc8181">Easy Auth Fehler: ' + err.message + '</span>';
+          });
+        }
+      }
     } else {
-      /* Main page - check if already authenticated */
+      /* No token in hash - check if already authenticated */
       fetch('/.auth/me').then(function(r) { if (r.ok) return r.json(); throw 0; })
         .then(function(d) { if (d[0]) loadUserInfo(); }).catch(function() {});
     }
